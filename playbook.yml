@@ -4,11 +4,6 @@
   roles:
     - base
 
-- hosts: localhost
-  become: true
-  roles:
-    - localhost
-
 - hosts: NTP
   become: true
   roles:

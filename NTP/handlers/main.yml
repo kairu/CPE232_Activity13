@@ -1,2 +1,6 @@
 ---
 # handlers file for NTP
+- name: restart chrony
+  service:
+    name: chrony
+    state: restarted

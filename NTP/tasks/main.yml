@@ -1,2 +1,29 @@
 ---
 # tasks file for NTP
+- name: Open UDP port 123
+  ufw:
+    rule: allow
+    port: 123
+    proto: udp
+    state: enabled
+    
+- name: Install chrony
+  apt:
+    name: chrony
+    state: present
+    update_cache: true
+        
+- name: Start chrony service
+  service:
+    name: chrony
+    state: started
+    enabled: true
+        
+- name: Configure Chrony
+  template:
+    src: chrony.conf.j2
+    dest: /etc/chrony/chrony.conf
+    owner: root
+    group: root
+    mode: 0644
+  notify: restart chrony
