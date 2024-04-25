@@ -1,2 +1,19 @@
 ---
 # tasks file for OpenStack
+- name: Add OpenStack packages repository
+  apt_repository:
+    repo: 'deb http://ubuntu-cloud.archive.canonical.com/ubuntu jammy-updates/antelope main'
+    state: present
+    update_cache: yes
+        
+- name: Install Nova Compute
+  apt:
+    name: nova-compute
+    state: present
+    update_cache: yes
+        
+- name: Install OpenStack Client
+  apt:
+    name: python3-openstackclient
+    state: present
+    update_cache: yes

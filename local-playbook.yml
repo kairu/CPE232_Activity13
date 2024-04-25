@@ -3,6 +3,10 @@
   hosts: localhost
   become: true
   connection: local
+  vars:
+    rabbit_mq_openstack_user: openstack
+    rabbit_mq_openstack_password: "password"
+    
   tasks:
     - name: Install chrony
       apt:
@@ -31,9 +35,168 @@
         port: 123
         proto: udp
         state: enabled
-       
+        
+    - name: Add OpenStack packages repository
+      apt_repository:
+        repo: 'deb http://ubuntu-cloud.archive.canonical.com/ubuntu jammy-updates/antelope main'
+        state: present
+        update_cache: yes
+        
+    - name: Install Nova Compute
+      apt:
+        name: nova-compute
+        state: present
+        update_cache: yes
+        
+    - name: Install OpenStack Client
+      apt:
+        name: python3-openstackclient
+        state: present
+        update_cache: yes
+        
+    - name: Install Mariadb-server
+      apt:
+        name: mariadb-server
+        state: present
+        update_cache: yes
+        
+    - name: Install pymysql
+      apt:
+        name: python3-pymysql
+        state: present
+        update_cache: yes
+        
+    - name: Configure MariaDB server
+      template:
+        src: mysql.conf.j2
+        dest: /etc/mysql/mariadb.conf.d/99-openstack.cnf
+      notify:
+        - restart mariadb
+        
+    - name: Start MariaDB service
+      service:
+        name: mariadb
+        state: started
+        enabled: true
+        
+    - name: Run mysql_secure_installation
+      command: >
+        mysql -u root -nbE
+        --execute="
+          DELETE FROM mysql.user WHERE User='';
+          DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
+          DROP DATABASE IF EXISTS test;
+          DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
+          FLUSH PRIVILEGES;
+        "
+        
+    - name: Install Rabbitmq Server
+      apt:
+        name: rabbitmq-server
+        state: present
+        update_cache: yes
+   
+    - name: Start RabbitMQ service
+      service:
+        name: rabbitmq-server
+        state: started
+        enabled: true
+        
+    - name: Add OpenStack user
+      rabbitmq_user:
+        user: "{{ rabbit_mq_openstack_user }}"
+        password: "{{ rabbit_mq_openstack_password }}"
+        vhost: /
+        configure_priv: .*
+        read_priv: .*
+        write_priv: .*
+        state: present
+        
+    - name: Install memcached
+      apt:
+        name: memcached
+        state: present
+        update_cache: yes
+        
+    - name: Install python3 memcache
+      apt:
+        name: python3-memcache
+        state: present
+        update_cache: yes
+        
+    - name: Start memcache service
+      service:
+        name: memcached
+        state: started
+        enabled: true
+        
+    - name: Configure memcache
+      template:
+        src: memcached.conf.j2
+        dest: /etc/memcached.conf
+      notify:
+        - restart memcached
+        
+    - name: Install required packages for etcd
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - software-properties-common
+        state: present
+        update_cache: yes
+        
+    - name: Install etcd
+      apt:
+        name: etcd
+        state: present
+        update_cache: yes
+        
+    - name: Start etcd service
+      service:
+        name: etcd
+        state: started
+        enabled: true
+        
+    - name: Open port 2379
+      ufw:
+        rule: allow
+        port: 2379
+        proto: tcp
+        
+    - name: Open port 2380
+      ufw:
+        rule: allow
+        port: 2380
+        proto: tcp
+        
+    - name: Configure etcd
+      template:
+        src: etcd.conf.j2
+        dest: /etc/default/etcd
+        mode: 0644
+      notify:
+        - restart etcd
+        
   handlers:
     - name: restart chrony
       service:
         name: chrony
+        state: restarted
+        
+    - name: restart mariadb
+      service:
+        name: mariadb
+        state: restarted
+        
+    - name: restart memcached
+      service:
+        name: memcached
+        state: restarted
+        
+    - name: restart etcd
+      service:
+        name: etcd
         state: restarted
